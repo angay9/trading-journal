@@ -1,0 +1,121 @@
+* {
+    box-sizing: border-box;
+}
+body {
+    margin: 0;
+    background: #151515;
+    min-height: 100vh;
+}
+#app {
+    min-height: 100vh;
+}
+
+.min-h-14 {
+    min-height: 3.5rem;
+}
+nav a {
+    border-bottom-style: solid;
+}
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.1s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+}
+input[type="checkbox"] {
+    accent-color: #3b82f6;
+    cursor: pointer;
+    width: 1rem;
+    height: 1rem;
+}
+input[type="file"] {
+    display: none;
+}
+.drp-cell {
+    width: 2.25rem;
+    height: 2.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    border-radius: 9999px;
+}
+.summary-card {
+    padding: 1rem;
+}
+.calendar-day-cell {
+    padding: 0.5rem;
+}
+.calendar-board {
+    padding: 1rem;
+}
+
+.bg-gray-800,
+.bg-gray-900,
+.bg-gray-600,
+.bg-gray-500,
+.bg-gray-400,
+.bg-gray-300,
+.bg-gray-200,
+.bg-gray-100,
+.bg-black {
+    background-color: #0f0f0f !important;
+}
+.bg-gray-700 {
+    background-color: #222222 !important;
+}
+.external-link {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 768px) {
+    .summary-card-value {
+        font-size: 1.125rem;
+        line-height: 1.35rem;
+    }
+    .summary-card-label {
+        font-size: 0.6875rem;
+        line-height: 1rem;
+    }
+    .summary-card-sub {
+        font-size: 0.625rem;
+        line-height: 0.9rem;
+    }
+    .trade-type-pill {
+        font-size: 0.625rem;
+        line-height: 1rem;
+        padding-left: 0.4rem;
+        padding-right: 0.4rem;
+    }
+    .calendar-nav-btn {
+        width: 2.5rem;
+        height: 2.5rem;
+        font-size: 0.8rem;
+    }
+    .calendar-clear-btn {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.65rem;
+    }
+    .calendar-day-label {
+        font-size: 0.75rem;
+        line-height: 1rem;
+    }
+    .upload-btn {
+        padding: 0.4rem 0.625rem;
+        font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .calendar-day-cell {
+        padding: 0.3rem;
+    }
+    .calendar-board {
+        padding: 0.3rem;
+    }
+    .calendar-pnl {
+        font-size: 0.5rem;
+    }
+}
