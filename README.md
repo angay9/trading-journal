@@ -7,6 +7,8 @@ A professional trade log and performance tracking application designed for stock
 - **Frontend**: [Vue.js 3](https://vuejs.org/) (Composition API)
 - **Styling**: [TailwindCSS](https://tailwindcss.com/) & Vanilla CSS
 - **Build Tool**: [Vite](https://vitejs.dev/)
+- **Backend / DB**: [Firebase Firestore](https://firebase.google.com/products/firestore)
+- **Authentication**: [Firebase Auth](https://firebase.google.com/products/auth) (Google Sign-In)
 - **Parsing**: [PapaParse](https://www.papaparse.com/) for CSV processing
 
 ## 🛠️ How It Works
