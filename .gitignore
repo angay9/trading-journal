@@ -34,3 +34,6 @@ app/dist/
 # Env files
 .env
 app/.env
+
+# Other
+.vscode
