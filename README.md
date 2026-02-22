@@ -1,8 +1,4 @@
-<p align="center">
-  <img src="app/src/assets/img/logo.svg" width="100" alt="Trading Journal Logo">
-</p>
-
-# Trading Journal
+# <img src="app/src/assets/img/logo.svg" width="40" alt="Trading Journal Logo" style="vertical-align: middle;"> Trading Journal
 
 A professional trade log and performance tracking application designed for stock traders to analyze their activity and improve their edge.
 
