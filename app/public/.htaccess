@@ -1,17 +1,13 @@
-# /trading/dist/.htaccess
-
 Options -Indexes
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /trading/
 
-    # Don't rewrite existing files or directories
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
 
-    # Fallback to index.html for Vue Router
-    RewriteRule ^ /trading/dist/index.html [L]
+    RewriteRule ^ /trading/app/dist/index.html [L]
 </IfModule>
 
 <IfModule mod_expires.c>

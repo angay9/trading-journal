@@ -1,18 +1,13 @@
-# /trading/.htaccess
-
 Options -Indexes
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /trading/
 
-    # If the request is already pointing inside dist, leave it alone
-    RewriteCond %{REQUEST_URI} !^/trading/dist/
+    # Rewrite root to dist
+    RewriteRule ^$ /trading/app/dist/ [L]
 
-    # Don't rewrite real files/dirs in root (like .htaccess itself)
+    # Rewrite anything that's not a real file/dir to dist
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
-
-    # Send everything to dist/index.html
-    RewriteRule ^ dist/index.html [L]
+    RewriteRule ^(.*)$ /trading/app/dist/$1 [L]
 </IfModule>
