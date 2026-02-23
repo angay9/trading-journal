@@ -1,12 +1,16 @@
 <script setup>
 import { computed, nextTick, ref, watch } from "vue";
+import AppPagination from "../components/AppPagination.vue";
 import {
     bulkSetDeleted,
     deletedArr,
     doClearAll,
     hardDeleteAll,
+    saveDeleted,
     toggleDelete,
     trades,
+    userSettings,
+    saveSettings,
 } from "../state";
 import { calcPnlPct, fmt, fmtPct, fmtPnl, formatDateTime } from "../helpers";
 
@@ -52,7 +56,8 @@ const groupedSortMap = {
     exitPrice: (t) => t.exitPrice || 0,
     qty: (t) => t.qty || 0,
     pnl: (t) => (t.pnl !== null && t.pnl !== undefined ? t.pnl : 0),
-    pnlPct: (t) => (t.pnlPct !== null && t.pnlPct !== undefined ? t.pnlPct : -Infinity),
+    pnlPct: (t) =>
+        t.pnlPct !== null && t.pnlPct !== undefined ? t.pnlPct : -Infinity,
     status: (t) => t.status || "",
     description: (t) => t.description || 0,
 };
@@ -172,6 +177,32 @@ const rowCount = computed(() =>
         ? sortedGrouped.value.length
         : visible.value.length
 );
+
+const currentPage = ref(1);
+
+const paginatedIndividual = computed(() => {
+    const ipp = userSettings.value.tradesItemsPerPage || 20;
+    if (ipp === "all") return visible.value;
+    const start = (currentPage.value - 1) * ipp;
+    return visible.value.slice(start, start + ipp);
+});
+
+const paginatedGrouped = computed(() => {
+    const ipp = userSettings.value.tradesItemsPerPage || 20;
+    if (ipp === "all") return sortedGrouped.value;
+    const start = (currentPage.value - 1) * ipp;
+    return sortedGrouped.value.slice(start, start + ipp);
+});
+
+const updateItemsPerPage = (val) => {
+    userSettings.value.tradesItemsPerPage = val;
+    saveSettings();
+    currentPage.value = 1;
+};
+
+watch([filter, tradeView, showDeleted], () => {
+    currentPage.value = 1;
+});
 
 watch(tradeView, () => {
     selected.value = new Set();
@@ -374,7 +405,6 @@ const viewOptions = [
                 <span>View:</span>
                 <select
                     v-model="tradeView"
-                    
                     class="bg-gray-600 border border-gray-500 rounded-lg text-xs text-white px-2 py-1 focus:outline-none"
                 >
                     <option
@@ -428,7 +458,7 @@ const viewOptions = [
                     </thead>
                     <tbody>
                         <tr
-                            v-for="t in visible"
+                            v-for="t in paginatedIndividual"
                             :key="t.id"
                             class="border-b border-gray-700 cursor-pointer transition-colors"
                             :class="[
@@ -587,7 +617,7 @@ const viewOptions = [
                     </thead>
                     <tbody>
                         <tr
-                            v-for="t in sortedGrouped"
+                            v-for="t in paginatedGrouped"
                             :key="t.id"
                             class="border-b border-gray-700 hover:bg-gray-700"
                         >
@@ -686,11 +716,7 @@ const viewOptions = [
                                         : 'text-red-400'
                                 "
                             >
-                                {{
-                                    t.pnlPct !== null
-                                        ? fmtPct(t.pnlPct)
-                                        : "–"
-                                }}
+                                {{ t.pnlPct !== null ? fmtPct(t.pnlPct) : "–" }}
                             </td>
                             <td
                                 class="px-4 py-2 text-center text-xs uppercase text-gray-400"
@@ -734,6 +760,13 @@ const viewOptions = [
                     Permanently Delete All
                 </button>
             </div>
+
+            <AppPagination
+                :total-items="rowCount"
+                :items-per-page="userSettings.tradesItemsPerPage"
+                v-model="currentPage"
+                @update:items-per-page="updateItemsPerPage"
+            />
         </div>
     </div>
 </template>

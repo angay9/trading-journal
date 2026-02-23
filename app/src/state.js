@@ -57,8 +57,27 @@ export const sells = computed(() => active.value.filter(t => t.type === 'SELL'))
 let authInitPromise = null
 const LOCAL_TRADES_KEY = 'trade-tracker:guest:trades'
 const LOCAL_DELETED_KEY = 'trade-tracker:guest:deleted'
+const LOCAL_SETTINGS_KEY = 'trade-tracker:settings'
+
+export const userSettings = ref({
+    summaryItemsPerPage: 20,
+    tradesItemsPerPage: 20
+})
 
 const isGuestMode = () => !REQUIRE_GOOGLE_AUTH
+
+const loadSettings = () => {
+    if (typeof window === 'undefined') return
+    try {
+        const rawSettings = window.localStorage.getItem(LOCAL_SETTINGS_KEY)
+        if (rawSettings) {
+            const parsed = JSON.parse(rawSettings)
+            userSettings.value = { ...userSettings.value, ...parsed }
+        }
+    } catch {
+        // ignore
+    }
+}
 
 const loadGuestState = () => {
     if (typeof window === 'undefined') {
@@ -83,6 +102,8 @@ const loadGuestState = () => {
     } catch {
         deletedArr.value = []
     }
+
+    loadSettings()
 }
 
 const saveGuestTrades = () => {
@@ -104,6 +125,7 @@ const userTradesCollection = uid => collection(db, 'users', uid, 'trades')
 const userDeletedDoc = uid => doc(db, 'users', uid, 'meta', 'deleted')
 
 export async function initAuth() {
+    loadSettings()
     if (isGuestMode()) {
         currentUser.value = null
         await initStorage()
@@ -149,6 +171,7 @@ export async function signOutUser() {
 }
 
 export async function initStorage(uid = currentUser.value?.uid) {
+    loadSettings()
     if (isGuestMode()) {
         loadGuestState()
         return
@@ -199,6 +222,11 @@ export async function saveDeleted() {
     const uid = currentUser.value?.uid
     if (!db || !uid) return
     await setDoc(userDeletedDoc(uid), { ids: deletedArr.value })
+}
+
+export function saveSettings() {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(userSettings.value))
 }
 
 export async function toggleDelete(id) {

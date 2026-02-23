@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from "vue";
 import DateRangePicker from "../components/DateRangePicker.vue";
+import AppPagination from "../components/AppPagination.vue";
 import {
     TODAY,
     calcPnlPct,
@@ -10,7 +11,7 @@ import {
     formatDateTime,
     pad2,
 } from "../helpers";
-import { sells } from "../state";
+import { sells, userSettings, saveSettings } from "../state";
 
 const now = new Date();
 const sumStart = ref(`${now.getFullYear()}-${pad2(now.getMonth() + 1)}-01`);
@@ -33,7 +34,7 @@ const sumSortMap = {
     qty: (t) => t.quantity || 0,
     avgPrice: (t) => t.avgPrice || 0,
     pnl: (t) => t.pnl || 0,
-    pnlPct: (t) => (t.pnlPct ?? -Infinity),
+    pnlPct: (t) => t.pnlPct ?? -Infinity,
     result: (t) => (t.pnl >= 0 ? 1 : 0),
 };
 
@@ -128,6 +129,19 @@ const sorted = computed(() => {
 const onRange = (start, end) => {
     sumStart.value = start;
     sumEnd.value = end;
+};
+
+const currentPage = ref(1);
+const paginatedRows = computed(() => {
+    const ipp = userSettings.value.summaryItemsPerPage || 20;
+    if (ipp === "all") return sorted.value;
+    const start = (currentPage.value - 1) * ipp;
+    return sorted.value.slice(start, start + ipp);
+});
+
+const updateItemsPerPage = (val) => {
+    userSettings.value.summaryItemsPerPage = val;
+    saveSettings();
 };
 </script>
 
@@ -261,47 +275,47 @@ const onRange = (start, end) => {
                     </thead>
                     <tbody>
                         <tr
-                            v-for="t in sorted"
+                            v-for="t in paginatedRows"
                             :key="t.id"
                             class="border-b border-gray-700 hover:bg-gray-700"
                         >
                             <td class="px-4 py-2 font-semibold text-blue-400">
                                 <div class="flex items-center gap-2">
-                                <span class="font-semibold text-blue-400">{{
-                                    t.symbol
-                                }}</span>
-                                <a
-                                    :href="`https://tradingview.com/chart/?symbol=${encodeURIComponent(
+                                    <span class="font-semibold text-blue-400">{{
                                         t.symbol
-                                    )}`"
-                                    class="text-gray-400 hover:text-white"
-                                    style="border: none"
-                                    title="Open on TradingView"
-                                    target="_blank"
-                                    rel="noopener"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        class="h-3.6 w-3.6 rounded external-link text-black"
-                                        viewBox="0 0 16 16"
-                                        width="16px"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="1.2"
+                                    }}</span>
+                                    <a
+                                        :href="`https://tradingview.com/chart/?symbol=${encodeURIComponent(
+                                            t.symbol
+                                        )}`"
+                                        class="text-gray-400 hover:text-white"
+                                        style="border: none"
+                                        title="Open on TradingView"
+                                        target="_blank"
+                                        rel="noopener"
                                     >
-                                        <path
-                                            d="M5 11l6-6"
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                        />
-                                        <path
-                                            d="M5 5h6v6"
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                        />
-                                    </svg>
-                                </a>
-                            </div>
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-3.6 w-3.6 rounded external-link text-black"
+                                            viewBox="0 0 16 16"
+                                            width="16px"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.2"
+                                        >
+                                            <path
+                                                d="M5 11l6-6"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            />
+                                            <path
+                                                d="M5 5h6v6"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            />
+                                        </svg>
+                                    </a>
+                                </div>
                                 <div
                                     class="text-xs text-gray-500 truncate"
                                     style="max-width: 8rem"
@@ -338,7 +352,7 @@ const onRange = (start, end) => {
                                         : 'text-red-400'
                                 "
                             >
-                                {{ t.pnlPct !== null ? fmtPct(t.pnlPct) : '—' }}
+                                {{ t.pnlPct !== null ? fmtPct(t.pnlPct) : "—" }}
                             </td>
                             <td class="px-4 py-2 text-center">
                                 <span
@@ -364,6 +378,12 @@ const onRange = (start, end) => {
                     </tbody>
                 </table>
             </div>
+            <AppPagination
+                :total-items="sorted.length"
+                :items-per-page="userSettings.summaryItemsPerPage"
+                v-model="currentPage"
+                @update:items-per-page="updateItemsPerPage"
+            />
         </div>
     </div>
 </template>
