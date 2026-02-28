@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import DateRangePicker from "../components/DateRangePicker.vue";
 import AppPagination from "../components/AppPagination.vue";
 import {
@@ -16,6 +16,7 @@ import { sells, userSettings, saveSettings } from "../state";
 const now = new Date();
 const sumStart = ref(`${now.getFullYear()}-${pad2(now.getMonth() + 1)}-01`);
 const sumEnd = ref(TODAY);
+const sumSearch = ref("");
 
 const sumSells = computed(() =>
     sells.value.filter(
@@ -114,10 +115,23 @@ const sumRows = computed(() =>
     }))
 );
 
+const sumSearchTerm = computed(() => sumSearch.value.trim().toUpperCase());
+const searchableRows = computed(() => {
+    if (!sumSearchTerm.value) return sumRows.value;
+    return sumRows.value.filter((t) => {
+        const symbol = t.symbol || "";
+        const description = t.description || "";
+        return (
+            symbol.toUpperCase().includes(sumSearchTerm.value) ||
+            description.toUpperCase().includes(sumSearchTerm.value)
+        );
+    });
+});
+
 const sorted = computed(() => {
     const accessor =
         sumSortMap[sumSortCol.value] || ((t) => t[sumSortCol.value]);
-    return [...sumRows.value].sort((a, b) => {
+    return [...searchableRows.value].sort((a, b) => {
         const av = accessor(a);
         const bv = accessor(b);
         if (av < bv) return sumSortDir.value === "asc" ? -1 : 1;
@@ -129,11 +143,12 @@ const sorted = computed(() => {
 const onRange = (start, end) => {
     sumStart.value = start;
     sumEnd.value = end;
+    currentPage.value = 1;
 };
 
 const currentPage = ref(1);
 const paginatedRows = computed(() => {
-    const ipp = userSettings.value.summaryItemsPerPage || 20;
+    const ipp = userSettings.value.summaryItemsPerPage || 10;
     if (ipp === "all") return sorted.value;
     const start = (currentPage.value - 1) * ipp;
     return sorted.value.slice(start, start + ipp);
@@ -143,6 +158,10 @@ const updateItemsPerPage = (val) => {
     userSettings.value.summaryItemsPerPage = val;
     saveSettings();
 };
+
+watch(sumSearch, () => {
+    currentPage.value = 1;
+});
 </script>
 
 <template>
@@ -153,6 +172,53 @@ const updateItemsPerPage = (val) => {
                 :end="sumEnd"
                 @change="onRange"
             />
+            <div class="sm:w-auto sm:max-w-xs">
+                <div class="relative">
+                    <span
+                        class="absolute text-gray-500 text-sm"
+                        style="
+                            left: 0.75rem;
+                            top: 50%;
+                            transform: translateY(-50%);
+                        "
+                        >🔍</span
+                    >
+                    <input
+                        v-model="sumSearch"
+                        placeholder="Filter by ticker…"
+                        class="bg-gray-600 border border-gray-500 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                        style="
+                            padding: 0.5rem 0.75rem 0.5rem 2rem;
+                            width: 11rem;
+                        "
+                    />
+                    <button
+                        v-if="sumSearch"
+                        class="absolute text-gray-400 hover:text-white text-xs"
+                        style="
+                            right: 0.5rem;
+                            top: 50%;
+                            transform: translateY(-50%);
+                        "
+                        @click="sumSearch = ''"
+                    >
+                        ✕
+                    </button>
+                </div>
+                <!-- <label
+                    for="summary-search"
+                    class="block text-[0.65rem] uppercase tracking-wide text-gray-400 mb-1"
+                >
+                    Search
+                </label>
+                <input
+                    id="summary-search"
+                    v-model="sumSearch"
+                    type="search"
+                    placeholder="Symbol or description"
+                    class="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                /> -->
+            </div>
             <span v-if="sumStart" class="text-xs text-gray-400"
                 >{{ sumSells.length }} sell trades</span
             >

@@ -2,10 +2,13 @@
 import { computed, nextTick, ref, watch } from "vue";
 import AppPagination from "../components/AppPagination.vue";
 import {
+    addTradesToList,
     bulkSetDeleted,
     deletedArr,
-    doClearAll,
-    hardDeleteAll,
+    hardDeleteSelected,
+    lists,
+    activeListId,
+    removeTradesFromList,
     saveDeleted,
     toggleDelete,
     trades,
@@ -23,10 +26,54 @@ const tradeView = ref("grouped");
 const pendingAction = ref(null);
 const hdrChk = ref(null);
 
+const activeListFilter = computed(() => {
+    if (!activeListId.value) return null;
+    const list = lists.value.find((l) => l.id === activeListId.value);
+    if (!list) return null;
+    return new Set(list.tradeIds);
+});
+const listFormVisible = ref(false);
+const listFormExisting = ref("");
+const listFormNewName = ref("");
+
+const showListForm = () => {
+    listFormExisting.value = lists.value[0]?.id || "";
+    listFormNewName.value = "";
+    listFormVisible.value = true;
+};
+
+const hideListForm = () => {
+    listFormVisible.value = false;
+};
+
+const submitListForm = async () => {
+    if (!selected.value.size) {
+        hideListForm();
+        return;
+    }
+    const newName = (listFormNewName.value || "").trim();
+    let target = "";
+    if (newName) {
+        target = newName;
+    } else if (listFormExisting.value) {
+        target = { id: listFormExisting.value };
+    }
+    if (!target) {
+        return;
+    }
+    await addTradesToList(target, Array.from(selected.value));
+    selected.value = new Set();
+    hideListForm();
+};
+
 const filteredTrades = computed(() => {
     let list = showDeleted.value
         ? trades.value
         : trades.value.filter((t) => !deletedArr.value.includes(t.id));
+    const listFilter = activeListFilter.value;
+    if (listFilter) {
+        list = list.filter((t) => listFilter.has(t.id));
+    }
     if (filter.value.trim()) {
         const q = filter.value.trim().toUpperCase();
         list = list.filter(
@@ -181,14 +228,14 @@ const rowCount = computed(() =>
 const currentPage = ref(1);
 
 const paginatedIndividual = computed(() => {
-    const ipp = userSettings.value.tradesItemsPerPage || 20;
+    const ipp = userSettings.value.tradesItemsPerPage || 10;
     if (ipp === "all") return visible.value;
     const start = (currentPage.value - 1) * ipp;
     return visible.value.slice(start, start + ipp);
 });
 
 const paginatedGrouped = computed(() => {
-    const ipp = userSettings.value.tradesItemsPerPage || 20;
+    const ipp = userSettings.value.tradesItemsPerPage || 10;
     if (ipp === "all") return sortedGrouped.value;
     const start = (currentPage.value - 1) * ipp;
     return sortedGrouped.value.slice(start, start + ipp);
@@ -273,6 +320,18 @@ const execBulk = async () => {
     pendingAction.value = null;
 };
 
+const removeSelectionFromActiveList = async () => {
+    if (!activeListId.value) return;
+    await removeTradesFromList(activeListId.value, Array.from(selected.value));
+    selected.value = new Set();
+};
+
+const confirmHardDeleteSelected = async () => {
+    await hardDeleteSelected(new Set(selected.value));
+    selected.value = new Set();
+    pendingAction.value = null;
+};
+
 const cols = [
     { key: "symbol", label: "Symbol", right: false },
     { key: "date", label: "Date", right: false },
@@ -340,34 +399,98 @@ const viewOptions = [
             <div class="flex-1" />
 
             <template v-if="selected.size > 0 && !pendingAction">
-                <div
-                    class="flex items-center gap-2 bg-gray-700 border border-gray-600 rounded-lg px-3 py-1 text-xs"
+            <div
+                class="flex items-center gap-2 bg-gray-700 border border-gray-600 rounded-lg px-3 py-1 text-xs"
+            >
+                <span class="text-gray-300 font-medium"
+                    >{{ selected.size }} selected</span
                 >
-                    <span class="text-gray-300 font-medium"
-                        >{{ selected.size }} selected</span
-                    >
-                    <button
-                        v-if="selHasActive"
-                        class="bg-red-700 hover:bg-red-600 text-red-100 px-2 py-1 rounded"
-                        @click="pendingAction = 'delete'"
-                    >
-                        Delete
-                    </button>
-                    <button
-                        v-if="selHasDeleted"
-                        class="bg-green-800 hover:bg-green-700 text-green-200 px-2 py-1 rounded"
-                        @click="pendingAction = 'restore'"
-                    >
-                        Restore
-                    </button>
-                    <button
-                        class="text-gray-400 hover:text-white ml-1"
-                        @click="selected = new Set()"
-                    >
-                        ✕
-                    </button>
-                </div>
+                <button
+                    v-if="selHasActive"
+                    class="bg-red-700 hover:bg-red-600 text-red-100 px-2 py-1 rounded"
+                    @click="pendingAction = 'delete'"
+                >
+                    Delete
+                </button>
+                <button
+                    class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded"
+                    @click="showListForm"
+                >
+                    Add to list
+                </button>
+                <button
+                    v-if="activeListId"
+                    class="bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded"
+                    @click="removeSelectionFromActiveList"
+                >
+                    Remove from list
+                </button>
+                <button
+                    v-if="selHasDeleted"
+                    class="bg-green-800 hover:bg-green-700 text-green-200 px-2 py-1 rounded"
+                    @click="pendingAction = 'restore'"
+                >
+                    Restore
+                </button>
+                <button
+                    class="text-gray-400 hover:text-white ml-1"
+                    @click="selected = new Set()"
+                >
+                    ✕
+                </button>
+            </div>
             </template>
+            <transition name="fade">
+                <div
+                    v-if="listFormVisible"
+                    class="w-full mt-2 bg-gray-900 border border-blue-600 rounded-lg px-3 py-3 text-xs text-gray-300 space-y-3"
+                >
+                    <div class="flex flex-wrap items-center gap-3 text-sm">
+                        <div class="flex-1 min-w-[200px]">
+                            <label class="text-[0.65rem] uppercase tracking-wide text-gray-400">
+                                Add to list
+                            </label>
+                            <select
+                                v-model="listFormExisting"
+                                class="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:border-blue-400 focus:outline-none"
+                            >
+                                <option value="">Select existing list</option>
+                                <option v-for="list in lists" :key="list.id" :value="list.id">
+                                    {{ list.name }}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="flex-1 min-w-[200px]">
+                            <label class="text-[0.65rem] uppercase tracking-wide text-gray-400">
+                                Or create new
+                            </label>
+                            <input
+                                v-model="listFormNewName"
+                                type="text"
+                                placeholder="New list name"
+                                class="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:border-blue-400 focus:outline-none"
+                            />
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs"
+                            @click="submitListForm"
+                        >
+                            Save selection
+                        </button>
+                        <button
+                            class="text-gray-400 hover:text-white px-3 py-1 rounded border border-gray-600 text-xs"
+                            @click="hideListForm"
+                        >
+                            Cancel
+                        </button>
+                        <span class="text-gray-500 text-[0.65rem]">
+                            Choose an existing list or type a new name; the selection will be added when you click Save.
+                        </span>
+                    </div>
+                </div>
+            </transition>
 
             <template v-if="pendingAction">
                 <div
@@ -749,15 +872,15 @@ const viewOptions = [
             </div>
 
             <div
-                v-if="trades.length"
+                v-if="selected.size"
                 class="px-4 py-3 bg-gray-900 border-t border-gray-700 flex justify-end"
             >
                 <button
                     type="button"
                     class="text-xs text-white bg-red-600 hover:bg-red-500 border border-red-800 px-3 py-1 rounded transition-colors"
-                    @click="hardDeleteAll"
+                    @click="confirmHardDeleteSelected"
                 >
-                    Permanently Delete All
+                    Permanently Delete Selected
                 </button>
             </div>
 

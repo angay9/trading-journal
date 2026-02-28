@@ -7,6 +7,9 @@ import {
     currentUser,
     doImport,
     initAuth,
+    lists,
+    activeListId,
+    setActiveList,
     REQUIRE_GOOGLE_AUTH,
     signInWithGoogle,
     signOutUser,
@@ -29,7 +32,13 @@ const navRoutes = [
     { path: "/summary", label: "Summary" },
     { path: "/calendar", label: "Calendar" },
     { path: "/performance", label: "Performance" },
+    { path: "/lists", label: "Lists" },
 ];
+
+const listOptions = computed(() => lists.value);
+const handleActiveListChange = async (event) => {
+    await setActiveList(event.target.value || null);
+};
 
 const onHashChange = () => {
     menuOpen.value = false;
@@ -130,10 +139,32 @@ const handleLogout = async () => {
                             class="w-8 h-8 rounded-lg"
                             alt="Logo"
                         />
-                        <span class="text-lg font-semibold text-white"
+                        <span
+                            class="md:text-lg font-semibold text-white text-sm"
                             >Trading Journal</span
                         >
                     </router-link>
+                    <div
+                        class="flex items-center gap-2 text-xs text-gray-300 mt-1"
+                    >
+                        <span class="text-gray-400 hidden sm:inline"
+                            >Active List</span
+                        >
+                        <select
+                            class="bg-gray-700 border border-gray-600 text-xs text-white px-2 py-1 rounded-lg focus:border-blue-500 focus:outline-none"
+                            :value="activeListId || ''"
+                            @change="handleActiveListChange"
+                        >
+                            <option value="">All trades</option>
+                            <option
+                                v-for="list in listOptions"
+                                :key="list.id"
+                                :value="list.id"
+                            >
+                                {{ list.name }}
+                            </option>
+                        </select>
+                    </div>
                     <p class="text-gray-400 text-xs mt-1">
                         {{ activeCount }} active orders
                     </p>
@@ -144,7 +175,9 @@ const handleLogout = async () => {
                         Guest mode (local-only)
                     </p>
                 </div>
-                <div class="flex items-center gap-3">
+                <div
+                    class="flex flex-col items-stretch sm:flex-row sm:items-center gap-3"
+                >
                     <span
                         v-if="currentUser?.email"
                         class="text-xs text-gray-400 hidden sm:inline"

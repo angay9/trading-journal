@@ -1,12 +1,55 @@
 <script setup>
-import { computed, ref } from "vue";
-import { MONTHS, calcPnlPct, fmt, fmtPct, fmtPnl } from "../helpers";
+import { computed, ref, watch } from "vue";
+import {
+    MONTHS,
+    calcPnlPct,
+    fmt,
+    fmtPct,
+    fmtPnl,
+    pad2,
+} from "../helpers";
 import { sells } from "../state";
 
 const now = new Date();
 const calMonth = ref(now.getMonth() + 1);
 const calYear = ref(now.getFullYear());
-const calSelDay = ref(null);
+const calSelectedDays = ref([]);
+const calRangeAnchor = ref(null);
+const calSelections = ref({});
+const currentMonthKey = computed(
+    () => `${calYear.value}-${pad2(calMonth.value)}`
+);
+
+const applySelection = (days, anchor = null) => {
+    const unique = [...new Set(days)].sort((a, b) => a - b);
+    calSelectedDays.value = unique;
+    calRangeAnchor.value =
+        anchor !== null
+            ? anchor
+            : unique.length
+            ? unique[unique.length - 1]
+            : null;
+
+    const next = { ...calSelections.value };
+    if (unique.length) {
+        next[currentMonthKey.value] = unique;
+    } else {
+        delete next[currentMonthKey.value];
+    }
+    calSelections.value = next;
+};
+
+watch(
+    currentMonthKey,
+    (key) => {
+        const saved = calSelections.value[key] || [];
+        calSelectedDays.value = saved;
+        calRangeAnchor.value = saved.length
+            ? saved[saved.length - 1]
+            : null;
+    },
+    { immediate: true }
+);
 
 const calSells = computed(() =>
     sells.value.filter(
@@ -24,15 +67,125 @@ const dailyPnl = computed(() => {
     return map;
 });
 
+const availableDays = computed(() =>
+    new Set(calSells.value.map((t) => +t.date.slice(8, 10)))
+);
+
+const selectedDaysSorted = computed(() =>
+    [...new Set(calSelectedDays.value)].sort((a, b) => a - b)
+);
+
+const selectedDaySet = computed(() => new Set(selectedDaysSorted.value));
+
+const selectedGlobalDates = computed(() => {
+    const entries = Object.entries(calSelections.value);
+    const dates = [];
+    entries.forEach(([ym, days]) => {
+        days.forEach((day) => {
+            dates.push(`${ym}-${pad2(day)}`);
+        });
+    });
+    return dates.sort((a, b) => a.localeCompare(b));
+});
+
+const selectedGlobalDateSet = computed(
+    () => new Set(selectedGlobalDates.value)
+);
+
+const selectedGlobalTrades = computed(() =>
+    selectedGlobalDates.value.length
+        ? sells.value.filter((t) => selectedGlobalDateSet.value.has(t.date))
+        : []
+);
+
+const selectedPnl = computed(() =>
+    selectedGlobalTrades.value.reduce((sum, t) => sum + (t.pnl || 0), 0)
+);
+
+const selectedYears = computed(() =>
+    new Set(selectedGlobalDates.value.map((iso) => iso.slice(0, 4)))
+);
+
+const contiguousRange = computed(() => {
+    const dates = selectedGlobalDates.value;
+    if (dates.length <= 1) return false;
+    const msPerDay = 24 * 60 * 60 * 1000;
+    for (let i = 1; i < dates.length; i += 1) {
+        const prev = new Date(dates[i - 1]);
+        const current = new Date(dates[i]);
+        if ((current - prev) / msPerDay !== 1) {
+            return false;
+        }
+    }
+    return true;
+});
+
+const formatMonthDay = (iso, includeYear = false) => {
+    const month = MONTHS[Number(iso.slice(5, 7)) - 1];
+    const day = iso.slice(8, 10);
+    const year = iso.slice(0, 4);
+    return `${month} ${day}${includeYear ? ` ${year}` : ""}`;
+};
+
+const rangeLabel = computed(() => {
+    if (!selectedGlobalDates.value.length) return "";
+    if (selectedGlobalDates.value.length === 1) {
+        return formatMonthDay(selectedGlobalDates.value[0]);
+    }
+    const first = selectedGlobalDates.value[0];
+    const last = selectedGlobalDates.value.at(-1);
+    const includeYear = selectedYears.value.size > 1;
+    const startLabel =
+        includeYear || first.slice(0, 4) !== last.slice(0, 4)
+            ? formatMonthDay(first, true)
+            : formatMonthDay(first);
+    const endLabel =
+        includeYear || first.slice(0, 4) !== last.slice(0, 4)
+            ? formatMonthDay(last, true)
+            : formatMonthDay(last);
+    return `${startLabel} → ${endLabel}`;
+});
+
+const listLabel = computed(() => {
+    const years = selectedYears.value;
+    if (!years.size) return "";
+    const grouped = [];
+    selectedGlobalDates.value.forEach((iso) => {
+        const year = iso.slice(0, 4);
+        let group = grouped.find((g) => g.year === year);
+        if (!group) {
+            group = { year, dates: [] };
+            grouped.push(group);
+        }
+        group.dates.push(iso);
+    });
+
+    const includeYear = years.size > 1;
+    const parts = grouped.map((group) => {
+        const formatted = group.dates.map((iso, idx) => {
+            const isLastInGroup = idx === group.dates.length - 1;
+            return formatMonthDay(iso, includeYear && isLastInGroup);
+        });
+        return formatted.join(", ");
+    });
+    return parts.join(", ");
+});
+
+const selectionLabel = computed(() => {
+    if (!selectedGlobalDates.value.length) return "";
+    if (contiguousRange.value) {
+        return rangeLabel.value;
+    }
+    return listLabel.value;
+});
+
 const dims = computed(() => ({
     days: new Date(calYear.value, calMonth.value, 0).getDate(),
     first: new Date(calYear.value, calMonth.value - 1, 1).getDay(),
 }));
 
 const dayTrades = computed(() =>
-    calSelDay.value
-        ? calSells.value.filter((t) => +t.date.slice(8, 10) === calSelDay.value)
-        : []
+    selectedGlobalDates.value.length ? selectedGlobalTrades.value : []
 );
 
 const daySortCol = ref("symbol");
@@ -88,7 +241,6 @@ const prev = () => {
         calMonth.value = 12;
         calYear.value -= 1;
     } else calMonth.value -= 1;
-    calSelDay.value = null;
 };
 
 const next = () => {
@@ -96,13 +248,50 @@ const next = () => {
         calMonth.value = 1;
         calYear.value += 1;
     } else calMonth.value += 1;
-    calSelDay.value = null;
 };
 
-const clickDay = (day) => {
-    if (calSells.value.some((t) => +t.date.slice(8, 10) === day)) {
-        calSelDay.value = calSelDay.value === day ? null : day;
+const clickDay = (day, event) => {
+    if (!availableDays.value.has(day)) return;
+    const ctrl = event?.metaKey || event?.ctrlKey;
+    const shift = event?.shiftKey;
+    if (shift) {
+        const anchor = calRangeAnchor.value ?? day;
+        const [from, to] =
+            anchor <= day ? [anchor, day] : [day, anchor];
+        const range = [];
+        for (let d = from; d <= to; d += 1) {
+            if (availableDays.value.has(d)) {
+                range.push(d);
+            }
+        }
+        applySelection(range, anchor);
+        return;
     }
+
+    if (ctrl) {
+        const next = new Set(calSelectedDays.value);
+        if (next.has(day)) {
+            next.delete(day);
+        } else {
+            next.add(day);
+        }
+        const result = [...next].sort((a, b) => a - b);
+        applySelection(result, result.length ? day : null);
+        return;
+    }
+
+    if (
+        calSelectedDays.value.length === 1 &&
+        calSelectedDays.value[0] === day
+    ) {
+        applySelection([], null);
+    } else {
+        applySelection([day], day);
+    }
+};
+
+const clearSelection = () => {
+    applySelection([], null);
 };
 </script>
 
@@ -141,9 +330,9 @@ const clickDay = (day) => {
                 </div>
             </div>
             <button
-                v-if="calSelDay"
+                v-if="selectedGlobalDates.length"
                 class="calendar-clear-btn ml-auto text-xs text-gray-400 hover:text-white border border-gray-600 px-2 py-1 rounded transition-colors"
-                @click="calSelDay = null"
+                @click="clearSelection"
             >
                 Clear selection
             </button>
@@ -176,17 +365,15 @@ const clickDay = (day) => {
                     :key="day"
                     class="calendar-day-cell min-h-14 rounded-lg p-2 flex flex-col border transition-colors break-all"
                     :class="[
-                        calSells.some((t) => +t.date.slice(8, 10) === day)
-                            ? 'cursor-pointer'
-                            : '',
-                        calSelDay === day ? 'ring-2 ring-blue-400' : '',
+                        availableDays.has(day) ? 'cursor-pointer' : '',
+                        selectedDaySet.has(day) ? 'ring-2 ring-blue-400' : '',
                         dailyPnl[day] !== undefined
                             ? dailyPnl[day] >= 0
                                 ? 'bg-green-900 border-green-700 hover:bg-green-800'
                                 : 'bg-red-900 border-red-800 hover:bg-red-800'
                             : 'bg-gray-700 border-gray-600 hover:bg-gray-600',
                     ]"
-                    @click="clickDay(day)"
+                    @click="clickDay(day, $event)"
                 >
                     <span class="text-xs text-gray-400 font-medium">{{
                         day
@@ -213,15 +400,14 @@ const clickDay = (day) => {
         </div>
 
         <div
-            v-if="calSelDay"
+            v-if="selectedGlobalDates.length"
             class="bg-gray-800 border border-blue-700 rounded-xl overflow-hidden mb-4"
         >
             <div
                 class="px-4 py-3 border-b border-gray-700 flex items-center justify-between"
             >
                 <span class="text-sm font-semibold text-white"
-                    >{{ MONTHS[calMonth - 1] }}
-                    {{ String(calSelDay).padStart(2, "0") }} —
+                    >{{ selectionLabel }} —
                     {{ dayTrades.length }} trade{{
                         dayTrades.length !== 1 ? "s" : ""
                     }}</span
@@ -229,12 +415,10 @@ const clickDay = (day) => {
                 <span
                     class="text-sm font-bold"
                     :class="
-                        dailyPnl[calSelDay] >= 0
-                            ? 'text-green-400'
-                            : 'text-red-400'
+                        selectedPnl >= 0 ? 'text-green-400' : 'text-red-400'
                     "
                     >{{
-                        fmtPnl(dailyPnl[calSelDay] || 0, dayTrades[0]?.currency)
+                        fmtPnl(selectedPnl, dayTrades[0]?.currency)
                     }}</span
                 >
             </div>
@@ -443,7 +627,7 @@ const clickDay = (day) => {
         </div>
 
         <div
-            v-if="calSells.length && !calSelDay"
+            v-if="calSells.length && !selectedGlobalDates.length"
             class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden"
         >
             <div
@@ -457,7 +641,7 @@ const clickDay = (day) => {
                 )"
                 :key="day"
                 class="px-4 py-2 border-b border-gray-700 flex items-center justify-between hover:bg-gray-700 cursor-pointer transition-colors"
-                @click="clickDay(+day)"
+                @click="clickDay(+day, $event)"
             >
                 <div>
                     <span
